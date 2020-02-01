@@ -613,6 +613,44 @@ load _helpers
   [ "${actual}" = "false" ]
 }
 
+@test "client/DaemonSet: can overwrite CA secret with the provided one" {
+  cd `chart_dir`
+  local spec=$(helm template \
+      -x templates/client-daemonset.yaml  \
+      --set 'global.tls.enabled=true' \
+      --set 'global.tls.caCert.secretName=foo-ca-cert' \
+      --set 'global.tls.caCert.secretKey=key' \
+      --set 'global.tls.caKey.secretName=foo-ca-key' \
+      --set 'global.tls.caKey.secretKey=key' \
+      . | tee /dev/stderr |
+      yq '.spec.template.spec' | tee /dev/stderr)
+
+  # check that the provided ca cert secret is attached as a volume
+  local actual
+  actual=$(echo $spec | jq -r '.volumes[] | select(.name=="tls-ca-cert") | .secret.secretName' | tee /dev/stderr)
+  [ "${actual}" = "foo-ca-cert" ]
+
+  # check that the provided ca key secret is attached as volume
+  actual=$(echo $spec | jq -r '.volumes[] | select(.name=="tls-ca-key") | .secret.secretName' | tee /dev/stderr)
+  [ "${actual}" = "foo-ca-key" ]
+
+  # check that the CA cert path is set to the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].command | join(" ") | contains("/consul/tls/ca/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
+
+  # check that the readiness probe is using the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].readinessProbe.exec.command | join(" ") | contains("/consul/tls/ca/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
+
+  # check that the tls init container uses the provided secret keys as a CA cert
+  actual=$(echo $spec | jq -r '.initContainers[] | select(.name="client-tls-init") | .command | join(" ") | contains("-ca=/consul/tls/ca/cert/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
+
+  # check that the tls init container uses the provided secret keys as a CA key
+  actual=$(echo $spec | jq -r '.initContainers[] | select(.name="client-tls-init") | .command | join(" ") | contains("-key=/consul/tls/ca/key/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
+}
+
 #--------------------------------------------------------------------
 # extraEnvironmentVariables
 

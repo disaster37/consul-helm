@@ -61,7 +61,11 @@ spec:
         {{- if .Values.global.tls.enabled }}
         - name: tls-ca-cert
           secret:
+            {{- if .Values.global.tls.caCert.secretName }}
+            secretName: {{ .Values.global.tls.caCert.secretName }}
+            {{- else }}
             secretName: {{ template "consul.fullname" . }}-ca-cert
+            {{- end }}
         - name: tls-server-cert
           secret:
             secretName: {{ template "consul.fullname" . }}-server-cert
@@ -101,7 +105,7 @@ spec:
             - name: CONSUL_HTTP_ADDR
               value: https://localhost:8501
             - name: CONSUL_CACERT
-              value: /consul/tls/ca/tls.crt
+              value: /consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }}
             {{- end }}
             {{- include "consul.extraEnvironmentVars" .Values.server | nindent 12 }}
           command:
@@ -115,7 +119,7 @@ spec:
                 -bind=0.0.0.0 \
                 -bootstrap-expect={{ .Values.server.bootstrapExpect }} \
                 {{- if .Values.global.tls.enabled }}
-                -hcl='ca_file = "/consul/tls/ca/tls.crt"' \
+                -hcl='ca_file = "/consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }}"' \
                 -hcl='cert_file = "/consul/tls/server/tls.crt"' \
                 -hcl='key_file = "/consul/tls/server/tls.key"' \
                 {{- if .Values.global.tls.verify }}
@@ -207,7 +211,7 @@ spec:
                 - |
                   {{- if .Values.global.tls.enabled }}
                   curl \
-                    --cacert /consul/tls/ca/tls.crt \
+                    --cacert /consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }} \
                     https://127.0.0.1:8501/v1/status/leader \
                   {{- else }}
                   curl http://127.0.0.1:8500/v1/status/leader \

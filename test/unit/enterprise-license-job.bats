@@ -174,3 +174,28 @@ load _helpers
       yq -r '.spec.template.spec.containers[0].env[] | select(.name == "CONSUL_CACERT") | .value' | tee /dev/stderr)
   [ "${actual}" = "/consul/tls/ca/tls.crt" ]
 }
+
+@test "server/EnterpriseLicense: can overwrite CA secret with the provided one" {
+  cd `chart_dir`
+  local spec=$(helm template \
+      -x templates/client-snapshot-agent-deployment.yaml  \
+      -x templates/enterprise-license-job.yaml  \
+      --set 'server.enterpriseLicense.secretName=foo' \
+      --set 'server.enterpriseLicense.secretKey=bar' \
+      --set 'global.tls.enabled=true' \
+      --set 'global.tls.caCert.secretName=foo-ca-cert' \
+      --set 'global.tls.caCert.secretKey=key' \
+      --set 'global.tls.caKey.secretName=foo-ca-key' \
+      --set 'global.tls.caKey.secretKey=key' \
+      . | tee /dev/stderr |
+      yq '.spec.template.spec' | tee /dev/stderr)
+
+  # check that the provided ca cert secret is attached as a volume
+  local actual
+  actual=$(echo $spec | jq -r '.volumes[] | select(.name=="tls-ca-cert") | .secret.secretName' | tee /dev/stderr)
+  [ "${actual}" = "foo-ca-cert" ]
+
+  # check that the CONSUL_CACERT path is set to the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].env[] | select(.name=="CONSUL_CACERT") | .value' | tee /dev/stderr)
+  [ "${actual}" = "/consul/tls/ca/key" ]
+}

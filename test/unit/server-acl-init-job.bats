@@ -233,3 +233,26 @@ load _helpers
     actual=$(echo $command | jq -r '. | any(contains("-consul-tls-server-name=server.dc1.consul"))' | tee /dev/stderr)
     [ "${actual}" = "true" ]
 }
+
+@test "serverACLInit/Job: can overwrite CA secret with the provided one" {
+  cd `chart_dir`
+  local spec=$(helm template \
+      -x templates/server-acl-init-job.yaml  \
+      --set 'global.bootstrapACLs=true' \
+      --set 'global.tls.enabled=true' \
+      --set 'global.tls.caCert.secretName=foo-ca-cert' \
+      --set 'global.tls.caCert.secretKey=key' \
+      --set 'global.tls.caKey.secretName=foo-ca-key' \
+      --set 'global.tls.caKey.secretKey=key' \
+      . | tee /dev/stderr |
+      yq '.spec.template.spec' | tee /dev/stderr)
+
+  # check that the provided ca cert secret is attached as a volume
+  local actual
+  actual=$(echo $spec | jq -r '.volumes[] | select(.name=="tls-ca-cert") | .secret.secretName' | tee /dev/stderr)
+  [ "${actual}" = "foo-ca-cert" ]
+
+  # check that the -consul-ca-cert flag is set to the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].command | join(" ") | contains("-consul-ca-cert=/consul/tls/ca/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
+}

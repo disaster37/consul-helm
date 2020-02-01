@@ -36,7 +36,11 @@ spec:
       volumes:
       - name: tls-ca-cert
         secret:
+          {{- if .Values.global.tls.caCert.secretName }}
+          secretName: {{ .Values.global.tls.caCert.secretName }}
+          {{- else }}
           secretName: {{ template "consul.fullname" . }}-ca-cert
+          {{- end }}
       {{- end }}
       containers:
         - name: post-install-job
@@ -62,7 +66,7 @@ spec:
                 -k8s-namespace={{ .Release.Namespace }} \
                 {{- if .Values.global.tls.enabled }}
                 -use-https \
-                -consul-ca-cert=/consul/tls/ca/tls.crt \
+                -consul-ca-cert=/consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }} \
                 -consul-tls-server-name=server.{{ .Values.global.datacenter }}.{{ .Values.global.domain }} \
                 {{- end }}
                 {{- if .Values.syncCatalog.enabled }}

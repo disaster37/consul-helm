@@ -35,7 +35,11 @@ spec:
       volumes:
         - name: tls-ca-cert
           secret:
+            {{- if .Values.global.tls.caCert.secretName }}
+            secretName: {{ .Values.global.tls.caCert.secretName }}
+            {{- else }}
             secretName: {{ template "consul.fullname" . }}-ca-cert
+            {{- end }}
       {{- end }}
       containers:
         - name: apply-enterprise-license
@@ -54,7 +58,7 @@ spec:
               {{- end }}
             {{- if .Values.global.tls.enabled }}
             - name:  CONSUL_CACERT
-              value: /consul/tls/ca/tls.crt
+              value: /consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }}
             {{- end}}
             {{- if .Values.global.bootstrapACLs }}
             - name: CONSUL_HTTP_TOKEN

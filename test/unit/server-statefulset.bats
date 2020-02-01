@@ -624,7 +624,7 @@ load _helpers
 @test "server/StatefulSet: doesn't set the verify_* flags by default when global.tls.enabled and global.tls.verify is false" {
   cd `chart_dir`
   local command=$(helm template \
-      -x templates/server-statefulset.yaml  \
+      -x templates/server-statefulset.yaml \
       --set 'global.tls.enabled=true' \
       --set 'global.tls.verify=false' \
       . | tee /dev/stderr |
@@ -639,4 +639,30 @@ load _helpers
 
   actual=$(echo $command | jq -r '. | contains("verify_server_hostname = true")' | tee /dev/stderr)
   [ "${actual}" = "false" ]
+}
+
+@test "server/StatefulSet: can overwrite CA secret with the provided one" {
+  cd `chart_dir`
+  local spec=$(helm template \
+      -x templates/server-statefulset.yaml \
+      --set 'global.tls.enabled=true' \
+      --set 'global.tls.caCert.secretName=foo-ca-cert' \
+      --set 'global.tls.caCert.secretKey=key' \
+      --set 'global.tls.caKey.secretName=foo-ca-key' \
+      --set 'global.tls.caKey.secretKey=key' \
+      . | tee /dev/stderr |
+      yq '.spec.template.spec' | tee /dev/stderr)
+
+  # check that the provided ca cert secret is attached as a volume
+  local actual
+  actual=$(echo $spec | jq -r '.volumes[] | select(.name=="tls-ca-cert") | .secret.secretName' | tee /dev/stderr)
+  [ "${actual}" = "foo-ca-cert" ]
+
+  # check that the CONSUL_CACERT path is set to the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].env[] | select(.name=="CONSUL_CACERT") | .value' | tee /dev/stderr)
+  [ "${actual}" = "/consul/tls/ca/key" ]
+
+  # check that the readiness probe is using the provided secret key
+  actual=$(echo $spec | jq -r '.containers[0].readinessProbe.exec.command | join(" ") | contains("/consul/tls/ca/key")' | tee /dev/stderr)
+  [ "${actual}" = "true" ]
 }

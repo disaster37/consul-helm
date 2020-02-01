@@ -61,7 +61,7 @@ spec:
                 -acl-auth-method="{{ template "consul.fullname" . }}-k8s-auth-method" \
                 {{- end }}
                 {{- if .Values.global.tls.enabled }}
-                -consul-ca-cert=/consul/tls/ca/tls.crt \
+                -consul-ca-cert=/consul/tls/ca/{{ .Values.global.tls.caCert.secretKey }} \
                 {{- end }}
                 {{- if .Values.connectInject.centralConfig.enabled }}
                 -enable-central-config=true \
@@ -119,7 +119,11 @@ spec:
         {{- if .Values.global.tls.enabled }}
         - name: consul-ca-cert
           secret:
+            {{- if .Values.global.tls.caCert.secretName }}
+            secretName: {{ .Values.global.tls.caCert.secretName }}
+            {{- else }}
             secretName: {{ template "consul.fullname" . }}-ca-cert
+            {{- end }}
         {{- end }}
       {{- end }}
       {{- if .Values.connectInject.nodeSelector }}
